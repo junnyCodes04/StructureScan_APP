@@ -8,7 +8,9 @@ import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
@@ -18,7 +20,9 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -209,6 +213,8 @@ fun EditBuildingInfoScreen(
     onUpdateAnalysis: (Map<String, Any>) -> Unit,
     onDeleteAssessment: () -> Unit
 ) {
+    val context = LocalContext.current
+
     // --- State variables - Initialize with passed data ---
     var structureTitle by remember { mutableStateOf(initialAssessmentName) }
     var buildingType by remember { mutableStateOf(initialBuildingType) }
@@ -323,48 +329,64 @@ fun EditBuildingInfoScreen(
 
     // --- Clean input field composable ---
     @Composable
-    fun CleanInputField(label: String, placeholder: String, value: String, onValueChange: (String) -> Unit) {
+    fun CleanInputField(
+        label: String,
+        placeholder: String,
+        value: String,
+        onValueChange: (String) -> Unit,
+        keyboardType: KeyboardType = KeyboardType.Text
+    ) {
         Column(modifier = Modifier.fillMaxWidth()) {
             Text(
-                text = label.uppercase(),
-                fontSize = 12.sp,
+                text = label,
+                fontSize = 16.sp,
                 fontWeight = FontWeight.Medium,
-                color = Color(0xFF6B7280),
-                letterSpacing = 0.5.sp,
+                color = Color.Black,
                 modifier = Modifier.padding(bottom = 8.dp)
             )
             OutlinedTextField(
                 value = value,
                 onValueChange = onValueChange,
-                placeholder = { Text(placeholder, color = Color(0xFF9CA3AF), fontSize = 14.sp) },
+                placeholder = {
+                    Text(
+                        placeholder,
+                        color = Color(0xFF9CA3AF),
+                        fontSize = 16.sp
+                    )
+                },
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(8.dp),
                 colors = OutlinedTextFieldDefaults.colors(
-                    unfocusedBorderColor = Color(0xFFD1D5DB),
-                    focusedBorderColor = Color(0xFF6366F1),
+                    unfocusedBorderColor = Color(0xFFE5E7EB),
+                    focusedBorderColor = Color(0xFF2196F3),
                     unfocusedTextColor = Color.Black,
                     focusedTextColor = Color.Black
                 ),
-                singleLine = true
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = keyboardType)
             )
         }
     }
 
     // --- Clean dropdown field composable ---
     @Composable
-    fun CleanDropdownField(label: String, placeholder: String, options: List<String>, selected: String, onSelect: (String) -> Unit) {
+    fun CleanDropdownField(
+        label: String,
+        placeholder: String,
+        options: List<String>,
+        selected: String,
+        onSelect: (String) -> Unit
+    ) {
         var expanded by remember { mutableStateOf(false) }
 
         Column(modifier = Modifier.fillMaxWidth()) {
             Text(
-                text = label.uppercase(),
-                fontSize = 12.sp,
+                text = label,
+                fontSize = 16.sp,
                 fontWeight = FontWeight.Medium,
-                color = Color(0xFF6B7280),
-                letterSpacing = 0.5.sp,
+                color = Color.Black,
                 modifier = Modifier.padding(bottom = 8.dp)
             )
-
             ExposedDropdownMenuBox(
                 expanded = expanded,
                 onExpandedChange = { expanded = !expanded }
@@ -373,7 +395,13 @@ fun EditBuildingInfoScreen(
                     value = selected.ifEmpty { placeholder },
                     onValueChange = {},
                     readOnly = true,
-                    placeholder = { Text(placeholder, color = Color(0xFF9CA3AF), fontSize = 14.sp) },
+                    placeholder = {
+                        Text(
+                            placeholder,
+                            color = Color(0xFF9CA3AF),
+                            fontSize = 16.sp
+                        )
+                    },
                     trailingIcon = {
                         Icon(
                             Icons.Default.KeyboardArrowDown,
@@ -384,8 +412,8 @@ fun EditBuildingInfoScreen(
                     colors = OutlinedTextFieldDefaults.colors(
                         unfocusedTextColor = if (selected.isEmpty()) Color(0xFF9CA3AF) else Color.Black,
                         focusedTextColor = Color.Black,
-                        unfocusedBorderColor = Color(0xFFD1D5DB),
-                        focusedBorderColor = Color(0xFF6366F1)
+                        unfocusedBorderColor = Color(0xFFE5E7EB),
+                        focusedBorderColor = Color(0xFF2196F3)
                     ),
                     shape = RoundedCornerShape(8.dp),
                     modifier = Modifier
@@ -400,7 +428,7 @@ fun EditBuildingInfoScreen(
                 ) {
                     options.forEach { option ->
                         DropdownMenuItem(
-                            text = { Text(option, fontSize = 14.sp) },
+                            text = { Text(option, fontSize = 16.sp) },
                             onClick = {
                                 onSelect(option)
                                 expanded = false
@@ -418,85 +446,91 @@ fun EditBuildingInfoScreen(
             .fillMaxSize()
             .background(Color.White)
     ) {
-        Column(
+        // Top bar
+        Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 16.dp)
+                .padding(16.dp)
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                IconButton(
-                    onClick = onBack,
-                    enabled = !isUpdating
-                ) {
-                    Icon(
-                        Icons.Default.ArrowBack,
-                        contentDescription = "Back",
-                        tint = Color(0xFF0288D1)
-                    )
-                }
-
-                Text(
-                    text = "Edit Assessment",
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color(0xFF0288D1),
-                    modifier = Modifier.weight(1f),
-                    textAlign = TextAlign.Center
-                )
-
-                Spacer(modifier = Modifier.size(48.dp))
-            }
-
-            Column(
+            IconButton(
+                onClick = { onBack() },
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 16.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
+                    .size(40.dp)
+                    .background(Color(0xFFF3F4F6), CircleShape)
+                    .align(Alignment.CenterStart)
             ) {
-                Text(
-                    text = "Edit Your Assessment",
-                    fontSize = 24.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.Black,
-                    textAlign = TextAlign.Center
-                )
-                Text(
-                    text = "Manage the details about this structure",
-                    fontSize = 14.sp,
-                    color = Color(0xFF6B7280),
-                    modifier = Modifier.padding(top = 4.dp),
-                    textAlign = TextAlign.Center
+                Icon(
+                    imageVector = Icons.Default.ArrowBack,
+                    contentDescription = "Back",
+                    tint = Color.Black,
+                    modifier = Modifier.size(20.dp)
                 )
             }
+
+            Text(
+                text = "Edit Building Information",
+                fontSize = 20.sp,
+                textAlign = TextAlign.Center,
+                fontWeight = FontWeight.Bold,
+                color = Color(0xFF2196F3),
+                modifier = Modifier.align(Alignment.Center)
+            )
         }
 
+        // Scrollable content
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
-                .padding(20.dp)
+                .padding(horizontal = 16.dp)
         ) {
-
-            CleanInputField(
-                label = "Structure Title",
-                placeholder = "Home Assessment",
-                value = structureTitle
-            ) { structureTitle = it }
+            // Required Building Details section
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.padding(bottom = 16.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(24.dp)
+                        .background(Color(0xFF2196F3), CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        "i",
+                        color = Color.White,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+                Spacer(modifier = Modifier.width(12.dp))
+                Column {
+                    Text(
+                        "Edit Building Details",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color.Black
+                    )
+                    Text(
+                        "Update the information about this structure",
+                        fontSize = 14.sp,
+                        color = Color(0xFF6B7280)
+                    )
+                }
+            }
 
             Spacer(modifier = Modifier.height(24.dp))
 
+            // Building Type
             CleanDropdownField(
                 label = "Building Type",
-                placeholder = "Residential",
+                placeholder = "Select building type",
                 options = listOf("Residential", "Commercial", "Industrial", "Mixed-use"),
                 selected = buildingType
             ) { buildingType = it }
 
             Spacer(modifier = Modifier.height(24.dp))
 
+            // Two-column layout for Construction Year and Last Renovation
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(16.dp)
@@ -505,77 +539,115 @@ fun EditBuildingInfoScreen(
                     CleanInputField(
                         label = "Construction Year",
                         placeholder = "1998",
-                        value = constructionYear
-                    ) { constructionYear = it }
+                        value = constructionYear,
+                        keyboardType = KeyboardType.Number,
+                        onValueChange = {
+                            if (it.all { char -> char.isDigit() } && it.length <= 4) {
+                                constructionYear = it
+                            }
+                        }
+                    )
                 }
-
                 Box(modifier = Modifier.weight(1f)) {
                     CleanInputField(
                         label = "Last Renovation",
                         placeholder = "Optional",
-                        value = renovationYear
-                    ) { renovationYear = it }
+                        value = renovationYear,
+                        keyboardType = KeyboardType.Number,
+                        onValueChange = {
+                            if (it.all { char -> char.isDigit() } && it.length <= 4) {
+                                renovationYear = it
+                            }
+                        }
+                    )
                 }
             }
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            CleanDropdownField(
+            // Number of Floors (TEXT INPUT, NOT DROPDOWN)
+            CleanInputField(
                 label = "Number of Floors",
-                placeholder = "2 Floors",
-                options = (1..48).map { if (it == 1) "$it Floor" else "$it Floors" },
-                selected = floors
-            ) { floors = it }
+                placeholder = "Enter number of floors",
+                value = floors,
+                keyboardType = KeyboardType.Number,
+                onValueChange = {
+                    if (it.all { char -> char.isDigit() } && it.length <= 3) {
+                        floors = it
+                    }
+                }
+            )
 
             Spacer(modifier = Modifier.height(24.dp))
 
+            // Main Structural Material
             CleanDropdownField(
                 label = "Main Structural Material",
-                placeholder = "Reinforced Concrete",
-                options = listOf("Reinforced Concrete", "Wood", "Steel", "Composite Material", "Brick", "Masonry", "Stone"),
+                placeholder = "Select main material",
+                options = listOf(
+                    "Reinforced Concrete",
+                    "Wood",
+                    "Steel",
+                    "Composite Material",
+                    "Brick",
+                    "Masonry",
+                    "Stone"
+                ),
                 selected = material
             ) { material = it }
 
             Spacer(modifier = Modifier.height(24.dp))
 
+            // Foundation Type
             CleanDropdownField(
                 label = "Foundation Type (If Known)",
-                placeholder = "Spread Footing",
-                options = listOf("Spread Footing", "Slab-on-grade", "Crawl space", "Basement", "Pile foundation", "Mat foundation"),
+                placeholder = "Select foundation type",
+                options = listOf(
+                    "Spread Footing",
+                    "Slab-on-grade",
+                    "Crawl space",
+                    "Basement",
+                    "Pile foundation",
+                    "Mat foundation"
+                ),
                 selected = foundation
             ) { foundation = it }
 
             Spacer(modifier = Modifier.height(24.dp))
 
+            // Environment Type
             CleanDropdownField(
                 label = "Environment Type",
-                placeholder = "Suburban",
+                placeholder = "Select environment",
                 options = listOf("Urban", "Suburban", "Rural", "Coastal", "Mountainous"),
                 selected = environment
             ) { environment = it }
 
             Spacer(modifier = Modifier.height(32.dp))
 
+            // Previous Issues or Repairs
             Text(
-                "PREVIOUS ISSUES OR REPAIRS",
-                fontSize = 12.sp,
+                "Previous Issues or Repairs",
+                fontSize = 16.sp,
                 fontWeight = FontWeight.Medium,
-                color = Color(0xFF6B7280),
-                letterSpacing = 0.5.sp,
+                color = Color.Black,
                 modifier = Modifier.padding(bottom = 8.dp)
             )
-
             Text(
                 "Have you noticed any structural issues before?",
                 fontSize = 14.sp,
-                color = Color(0xFF374151),
+                color = Color(0xFF6B7280),
                 modifier = Modifier.padding(bottom = 16.dp)
             )
 
-            Column(
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                listOf("Wall cracks", "Foundation settling", "Water damage", "Recent repairs").forEach { issue ->
+            // Issues checkboxes
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                listOf(
+                    "Wall cracks",
+                    "Foundation settling",
+                    "Water damage",
+                    "Recent repairs"
+                ).forEach { issue ->
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier.fillMaxWidth()
@@ -586,7 +658,7 @@ fun EditBuildingInfoScreen(
                                 if (it) selectedIssues.add(issue) else selectedIssues.remove(issue)
                             },
                             colors = CheckboxDefaults.colors(
-                                checkedColor = Color(0xFF6366F1),
+                                checkedColor = Color(0xFF2196F3),
                                 uncheckedColor = Color(0xFF9CA3AF)
                             )
                         )
@@ -594,7 +666,7 @@ fun EditBuildingInfoScreen(
                         Text(
                             issue,
                             fontSize = 14.sp,
-                            color = Color(0xFF374151)
+                            color = Color.Black
                         )
                     }
                 }
@@ -602,25 +674,17 @@ fun EditBuildingInfoScreen(
 
             Spacer(modifier = Modifier.height(32.dp))
 
+            // Building Usage
             Text(
-                "BUILDING USAGE",
-                fontSize = 12.sp,
+                "Building Usage",
+                fontSize = 16.sp,
                 fontWeight = FontWeight.Medium,
-                color = Color(0xFF6B7280),
-                letterSpacing = 0.5.sp,
-                modifier = Modifier.padding(bottom = 8.dp)
-            )
-
-            Text(
-                "Occupancy Level:",
-                fontSize = 14.sp,
-                color = Color(0xFF374151),
+                color = Color.Black,
                 modifier = Modifier.padding(bottom = 16.dp)
             )
 
-            Column(
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
+            // Occupancy radio buttons
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 occupancyOptions.forEach { level ->
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
@@ -630,7 +694,7 @@ fun EditBuildingInfoScreen(
                             selected = selectedOccupancy == level,
                             onClick = { selectedOccupancy = level },
                             colors = RadioButtonDefaults.colors(
-                                selectedColor = Color(0xFF6366F1),
+                                selectedColor = Color(0xFF2196F3),
                                 unselectedColor = Color(0xFF9CA3AF)
                             )
                         )
@@ -638,7 +702,7 @@ fun EditBuildingInfoScreen(
                         Text(
                             level,
                             fontSize = 14.sp,
-                            color = Color(0xFF374151)
+                            color = Color.Black
                         )
                     }
                 }
@@ -646,25 +710,23 @@ fun EditBuildingInfoScreen(
 
             Spacer(modifier = Modifier.height(32.dp))
 
+            // Environmental Exposure
             Text(
-                "ENVIRONMENTAL EXPOSURE",
-                fontSize = 12.sp,
+                "Environmental Exposure",
+                fontSize = 16.sp,
                 fontWeight = FontWeight.Medium,
-                color = Color(0xFF6B7280),
-                letterSpacing = 0.5.sp,
+                color = Color.Black,
                 modifier = Modifier.padding(bottom = 8.dp)
             )
-
             Text(
                 "Known natural disaster risks:",
                 fontSize = 14.sp,
-                color = Color(0xFF374151),
+                color = Color(0xFF6B7280),
                 modifier = Modifier.padding(bottom = 16.dp)
             )
 
-            Column(
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
+            // Environmental risks checkboxes
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 listOf(
                     "Earthquake-prone Area",
                     "High Winds",
@@ -682,7 +744,7 @@ fun EditBuildingInfoScreen(
                                 if (it) selectedRisks.add(risk) else selectedRisks.remove(risk)
                             },
                             colors = CheckboxDefaults.colors(
-                                checkedColor = Color(0xFF6366F1),
+                                checkedColor = Color(0xFF2196F3),
                                 uncheckedColor = Color(0xFF9CA3AF)
                             )
                         )
@@ -690,7 +752,7 @@ fun EditBuildingInfoScreen(
                         Text(
                             risk,
                             fontSize = 14.sp,
-                            color = Color(0xFF374151)
+                            color = Color.Black
                         )
                     }
                 }
@@ -698,15 +760,14 @@ fun EditBuildingInfoScreen(
 
             Spacer(modifier = Modifier.height(32.dp))
 
+            // Additional Notes
             Text(
-                "ADDITIONAL NOTES",
-                fontSize = 12.sp,
+                "Additional Notes",
+                fontSize = 16.sp,
                 fontWeight = FontWeight.Medium,
-                color = Color(0xFF6B7280),
-                letterSpacing = 0.5.sp,
+                color = Color.Black,
                 modifier = Modifier.padding(bottom = 8.dp)
             )
-
             OutlinedTextField(
                 value = notes,
                 onValueChange = { notes = it },
@@ -714,7 +775,7 @@ fun EditBuildingInfoScreen(
                     Text(
                         "Any other relevant information about the building...",
                         color = Color(0xFF9CA3AF),
-                        fontSize = 14.sp
+                        fontSize = 16.sp
                     )
                 },
                 modifier = Modifier
@@ -723,8 +784,8 @@ fun EditBuildingInfoScreen(
                 maxLines = 5,
                 shape = RoundedCornerShape(8.dp),
                 colors = OutlinedTextFieldDefaults.colors(
-                    unfocusedBorderColor = Color(0xFFD1D5DB),
-                    focusedBorderColor = Color(0xFF6366F1),
+                    unfocusedBorderColor = Color(0xFFE5E7EB),
+                    focusedBorderColor = Color(0xFF2196F3),
                     unfocusedTextColor = Color.Black,
                     focusedTextColor = Color.Black
                 )
@@ -732,12 +793,31 @@ fun EditBuildingInfoScreen(
 
             Spacer(modifier = Modifier.height(40.dp))
 
-            // ✅ Update Button with Loading State
+            // Update Button with MODIFIED VALIDATION
             Button(
                 onClick = {
+                    // ✅ MODIFIED VALIDATION:
+                    // Can proceed if EITHER construction year OR renovation year is empty
+                    // But if BOTH have values, renovation year cannot be earlier than construction year
+                    if (constructionYear.isNotEmpty() && renovationYear.isNotEmpty()) {
+                        val constructionYearInt = constructionYear.toIntOrNull()
+                        val renovationYearInt = renovationYear.toIntOrNull()
+
+                        if (constructionYearInt != null && renovationYearInt != null) {
+                            if (renovationYearInt < constructionYearInt) {
+                                Toast.makeText(
+                                    context,
+                                    "Last renovation year cannot be earlier than construction year",
+                                    Toast.LENGTH_LONG
+                                ).show()
+                                return@Button
+                            }
+                        }
+                    }
+                    // If we reach here, validation passed - proceed with update
+
                     isUpdating = true
 
-                    // Prepare updated data
                     val updatedData = hashMapOf<String, Any>(
                         "assessmentName" to structureTitle,
                         "buildingType" to buildingType,
@@ -758,15 +838,15 @@ fun EditBuildingInfoScreen(
                 enabled = !isUpdating,
                 modifier = Modifier.fillMaxWidth(),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFF6366F1),
-                    disabledContainerColor = Color(0xFF6366F1).copy(alpha = 0.6f)
+                    containerColor = Color(0xFF2196F3),
+                    disabledContainerColor = Color(0xFF2196F3).copy(alpha = 0.6f)
                 ),
                 shape = RoundedCornerShape(8.dp),
                 contentPadding = PaddingValues(vertical = 16.dp)
             ) {
                 if (isUpdating) {
                     CircularProgressIndicator(
-                        modifier = Modifier.size(20.dp),
+                        modifier = Modifier.size(24.dp),
                         color = Color.White,
                         strokeWidth = 2.dp
                     )

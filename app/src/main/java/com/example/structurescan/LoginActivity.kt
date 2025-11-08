@@ -1,5 +1,4 @@
 package com.example.structurescan
-
 import android.content.Intent
 import android.os.Bundle
 import android.widget.Toast
@@ -401,7 +400,7 @@ fun LoginScreen(
                                                             } else {
                                                                 Toast.makeText(
                                                                     context,
-                                                                    "No user data found.",
+                                                                    "Account not Registered.",
                                                                     Toast.LENGTH_SHORT
                                                                 ).show()
                                                             }

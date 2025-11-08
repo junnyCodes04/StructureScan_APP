@@ -56,13 +56,21 @@ class CaptureImagesActivity : ComponentActivity() {
                     },
                     onViewImage = { images ->
                         val intent = Intent(this, SavedPhotoActivity::class.java)
-                        intent.putParcelableArrayListExtra(IntentKeys.CAPTURED_IMAGES, ArrayList(images))
+                        // ✅ Convert Uri to String for SavedPhotoActivity
+                        intent.putStringArrayListExtra(
+                            IntentKeys.CAPTURED_IMAGES,
+                            ArrayList(images.map { it.toString() })
+                        )
                         intent.putExtra(IntentKeys.ASSESSMENT_NAME, assessmentName)
                         startActivity(intent)
                     },
                     onProceed = { images ->
                         val intent = Intent(this, BuildingInfoActivity::class.java)
-                        intent.putParcelableArrayListExtra(IntentKeys.FINAL_IMAGES, ArrayList(images))
+                        // ✅ Convert Uri to String for BuildingInfoActivity
+                        intent.putStringArrayListExtra(
+                            IntentKeys.FINAL_IMAGES,
+                            ArrayList(images.map { it.toString() })
+                        )
                         intent.putExtra(IntentKeys.ASSESSMENT_NAME, assessmentName)
                         startActivity(intent)
                     }
@@ -82,15 +90,16 @@ fun CameraScreen(
     val context = LocalContext.current
     val images = remember { mutableStateListOf<Uri>() }
 
-    // ✅ Activity Result Launcher to receive updated images from SavedPhotoActivity
+    // ✅ FIXED: Activity Result Launcher to receive updated images from SavedPhotoActivity
     val savedPhotoLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
     ) { result ->
         if (result.resultCode == ComponentActivity.RESULT_OK) {
-            val updatedImages = result.data?.getParcelableArrayListExtra<Uri>(IntentKeys.UPDATED_IMAGES)
-            if (updatedImages != null) {
+            // ✅ Get String list and convert back to Uri
+            val updatedImagesStrings = result.data?.getStringArrayListExtra(IntentKeys.UPDATED_IMAGES)
+            if (updatedImagesStrings != null) {
                 images.clear()
-                images.addAll(updatedImages)
+                images.addAll(updatedImagesStrings.map { Uri.parse(it) })
             }
         }
     }
@@ -215,7 +224,11 @@ fun CameraScreen(
                     IconButton(
                         onClick = {
                             val intent = Intent(context, SavedPhotoActivity::class.java)
-                            intent.putParcelableArrayListExtra(IntentKeys.CAPTURED_IMAGES, ArrayList(images))
+                            // ✅ Convert Uri to String when passing to SavedPhotoActivity
+                            intent.putStringArrayListExtra(
+                                IntentKeys.CAPTURED_IMAGES,
+                                ArrayList(images.map { it.toString() })
+                            )
                             intent.putExtra(IntentKeys.ASSESSMENT_NAME, assessmentName)
                             savedPhotoLauncher.launch(intent)
                         },

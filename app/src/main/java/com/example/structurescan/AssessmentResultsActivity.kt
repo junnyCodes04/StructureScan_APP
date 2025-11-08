@@ -57,6 +57,8 @@ import java.text.SimpleDateFormat
 import java.util.*
 import com.example.structurescan.Utils.PdfReportGenerator
 import com.example.structurescan.Utils.PdfAssessmentData
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.yield
 
 data class DetectedIssue(
     val damageType: String,
@@ -180,7 +182,9 @@ class AssessmentResultsActivity : ComponentActivity() {
         firestore = FirebaseFirestore.getInstance()
         storage = FirebaseStorage.getInstance()
 
-        val capturedImages: ArrayList<Uri>? = intent.getParcelableArrayListExtra(IntentKeys.FINAL_IMAGES)
+        // ✅ FIXED: Receive String list and convert to Uri
+        val capturedImagesStrings: ArrayList<String>? = intent.getStringArrayListExtra(IntentKeys.FINAL_IMAGES)
+        val capturedImages: List<Uri> = capturedImagesStrings?.map { Uri.parse(it) } ?: emptyList()
         val assessmentName = intent.getStringExtra(IntentKeys.ASSESSMENT_NAME) ?: "Unnamed Assessment"
         val buildingType = intent.getStringExtra(IntentKeys.BUILDING_TYPE) ?: ""
         val constructionYear = intent.getStringExtra(IntentKeys.CONSTRUCTION_YEAR) ?: ""
@@ -548,14 +552,28 @@ fun AssessmentResultsScreen(
     }
 
     // ✅ MODIFIED: Only run once on initial load
-    LaunchedEffect(Unit) { // Changed from LaunchedEffect(capturedImages)
+    LaunchedEffect(Unit) {
         if (capturedImages.isNotEmpty() && !isSavedToFirebase) {
+            // ✅ IMPORTANT: Set BOTH states to true at the very start
             isAnalyzing = true
+            isSaving = true
             analysisError = null
+
+            // ✅ Critical: Give UI time to render the dialog BEFORE any work
+            yield()
+            delay(500)  // Increased to 500ms for slower devices
+
+            Log.d("AssessmentResults", "Dialog should be visible now - starting analysis")
+
             try {
                 val imageAssessments = capturedImages.mapNotNull { analyzeImageWithTensorFlow(it) }
+
+                Log.d("AssessmentResults", "Analysis complete: ${imageAssessments.size} images")
+
                 if (imageAssessments.isEmpty()) {
                     analysisError = "Failed to analyze images. Please try again."
+                    isAnalyzing = false
+                    isSaving = false
                 } else {
                     var crackHighCount = 0; var crackModerateCount = 0; var crackLowCount = 0
                     var paintHighCount = 0; var paintModerateCount = 0; var paintLowCount = 0
@@ -594,13 +612,16 @@ fun AssessmentResultsScreen(
                         algaeHighCount, algaeModerateCount, algaeLowCount, imageAssessments)
 
                     isAnalyzing = false
+                    // Keep isSaving = true during Firebase save
+
+                    Log.d("AssessmentResults", "Starting Firebase save...")
 
                     // Now save to Firebase
-                    isSaving = true
                     withContext(Dispatchers.IO) {
                         val success = onSaveToFirebase(summary)
                         withContext(Dispatchers.Main) {
-                            isSaving = false
+                            Log.d("AssessmentResults", "Firebase save result: $success")
+                            isSaving = false  // Only stop here
                             if (success) {
                                 assessmentSummary = summary
                                 isSavedToFirebase = true
@@ -612,8 +633,10 @@ fun AssessmentResultsScreen(
                     }
                 }
             } catch (e: Exception) {
+                Log.e("AssessmentResults", "Error: ${e.message}", e)
                 analysisError = "Analysis failed: ${e.message}"
                 isAnalyzing = false
+                isSaving = false
             }
         }
     }

@@ -34,23 +34,32 @@ class SavedPhotoActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        val images: ArrayList<Uri>? = intent.getParcelableArrayListExtra(IntentKeys.CAPTURED_IMAGES)
+        // ✅ FIXED: Receive String list and convert to Uri
+        val imagesStrings: ArrayList<String>? = intent.getStringArrayListExtra(IntentKeys.CAPTURED_IMAGES)
+        val images = imagesStrings?.map { Uri.parse(it) } ?: emptyList()
         val assessmentName = intent.getStringExtra(IntentKeys.ASSESSMENT_NAME) ?: "Unnamed Assessment"
 
         setContent {
             MaterialTheme {
                 SavedPhotoScreen(
-                    initialImages = images ?: emptyList(),
+                    initialImages = images,
                     onBack = { updatedImages ->
-                        // ✅ Return updated images to CaptureImagesActivity
+                        // ✅ FIXED: Convert Uri to String when returning
                         val resultIntent = Intent()
-                        resultIntent.putParcelableArrayListExtra(IntentKeys.UPDATED_IMAGES, ArrayList(updatedImages))
+                        resultIntent.putStringArrayListExtra(
+                            IntentKeys.UPDATED_IMAGES,
+                            ArrayList(updatedImages.map { it.toString() })
+                        )
                         setResult(Activity.RESULT_OK, resultIntent)
                         finish()
                     },
-                    onProceed = {
+                    onProceed = { uriList ->
                         val intent = Intent(this, BuildingInfoActivity::class.java)
-                        intent.putParcelableArrayListExtra(IntentKeys.FINAL_IMAGES, ArrayList(it))
+                        // ✅ FIXED: Convert Uri to String
+                        intent.putStringArrayListExtra(
+                            IntentKeys.FINAL_IMAGES,
+                            ArrayList(uriList.map { it.toString() })
+                        )
                         intent.putExtra(IntentKeys.ASSESSMENT_NAME, assessmentName)
                         startActivity(intent)
                         finish()
