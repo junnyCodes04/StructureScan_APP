@@ -1,5 +1,5 @@
 package com.example.structurescan
-
+import android.Manifest
 import android.app.Activity
 import android.content.Intent
 import android.graphics.Bitmap
@@ -58,8 +58,8 @@ class DetailActivity : ComponentActivity() {
                         startActivity(intent)
                         finish()
                     },
-                    onContinue = { role, imageUri, bitmap, onLoadingChange ->
-                        uploadProfile(role, imageUri, bitmap, onLoadingChange)
+                    onContinue = { profession, imageUri, bitmap, onLoadingChange ->
+                        uploadProfile(profession, imageUri, bitmap, onLoadingChange)
                     }
                 )
             }
@@ -67,7 +67,7 @@ class DetailActivity : ComponentActivity() {
     }
 
     private fun uploadProfile(
-        role: String,
+        profession: String,
         imageUri: Uri?,
         bitmap: Bitmap?,
         onLoadingChange: (Boolean) -> Unit
@@ -86,9 +86,9 @@ class DetailActivity : ComponentActivity() {
         val userId = user.uid
         val db = FirebaseFirestore.getInstance()
 
-        // ✅ FLEXIBLE: Check if user has image or role
+        // ✅ FLEXIBLE: Check if user has image or profession
         val hasImage = imageUri != null || bitmap != null
-        val hasRole = role.isNotEmpty()
+        val hasProfession = profession.isNotEmpty()
 
         if (hasImage) {
             // Upload image first, then save to Firestore
@@ -108,13 +108,13 @@ class DetailActivity : ComponentActivity() {
 
             uploadTask?.addOnSuccessListener {
                 storageRef.downloadUrl.addOnSuccessListener { downloadUri ->
-                    // Save both role and photo URL
+                    // Save both profession and photo URL
                     val userData = hashMapOf<String, Any>(
                         "userId" to userId,
                         "photoUrl" to downloadUri.toString()
                     )
-                    if (hasRole) {
-                        userData["role"] = role
+                    if (hasProfession) {
+                        userData["profession"] = profession
                     }
 
                     db.collection("users").document(userId)
@@ -137,11 +137,11 @@ class DetailActivity : ComponentActivity() {
                 onLoadingChange(false)
                 Toast.makeText(this, "Image upload failed: ${e.message}", Toast.LENGTH_LONG).show()
             }
-        } else if (hasRole) {
-            // ✅ Only save role without photo
+        } else if (hasProfession) {
+            // ✅ Only save profession without photo
             val userData = hashMapOf<String, Any>(
                 "userId" to userId,
-                "role" to role
+                "profession" to profession
             )
 
             db.collection("users").document(userId)
@@ -168,16 +168,21 @@ fun DetailScreen(
     onContinue: (String, Uri?, Bitmap?, (Boolean) -> Unit) -> Unit
 ) {
     val context = LocalContext.current
-    var selectedRole by remember { mutableStateOf("") }
+    var selectedProfession by remember { mutableStateOf("") }
+    var customProfession by remember { mutableStateOf("") }
     var isDropdownExpanded by remember { mutableStateOf(false) }
     var imageUri by remember { mutableStateOf<Uri?>(null) }
     var capturedImage by remember { mutableStateOf<Bitmap?>(null) }
     var isLoading by remember { mutableStateOf(false) }
+    var showCustomInput by remember { mutableStateOf(false) }
 
-    val galleryLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.GetContent()
-    ) { uri: Uri? -> imageUri = uri }
+    // ✅ Dialog states
+    var showImageSourceDialog by remember { mutableStateOf(false) }
+    var showPermissionDeniedDialog by remember { mutableStateOf(false) }
 
+    val professionOptions = listOf("Engineer", "Architect", "Inspector", "Manager", "Technician", "Other (Please specify)")
+
+    // ✅ Camera Launcher (defined FIRST)
     val cameraLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
     ) { result ->
@@ -187,7 +192,62 @@ fun DetailScreen(
         }
     }
 
-    val roleOptions = listOf("Engineer", "Architect", "Inspector", "Manager", "Technician")
+    // ✅ Camera Permission Launcher (uses cameraLauncher)
+    val cameraPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            val cameraIntent = Intent(MediaStore.ACTION_IMAGE_CAPTURE)
+            cameraLauncher.launch(cameraIntent)
+        } else {
+            showPermissionDeniedDialog = true
+        }
+    }
+
+    // Gallery Launcher
+    val galleryLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? -> imageUri = uri }
+
+    // ✅ Permission Denied Dialog
+    if (showPermissionDeniedDialog) {
+        AlertDialog(
+            onDismissRequest = { showPermissionDeniedDialog = false },
+            confirmButton = {
+                TextButton(onClick = { showPermissionDeniedDialog = false }) {
+                    Text("OK")
+                }
+            },
+            title = { Text("Camera Permission Required") },
+            text = { Text("Camera permission is needed to take photos. Please enable it in your device settings.") }
+        )
+    }
+
+    // ✅ Image Source Dialog (Compose version)
+    if (showImageSourceDialog) {
+        AlertDialog(
+            onDismissRequest = { showImageSourceDialog = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    showImageSourceDialog = false
+                    galleryLauncher.launch("image/*")
+                }) {
+                    Text("Choose from Gallery")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    showImageSourceDialog = false
+                    // ✅ Request camera permission before launching camera
+                    cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+                }) {
+                    Text("Take Photo")
+                }
+            },
+            title = { Text("Select Option") },
+            text = { Text("Choose an image from Gallery or take a photo with Camera.") }
+        )
+    }
 
     Column(
         modifier = Modifier
@@ -237,20 +297,8 @@ fun DetailScreen(
                         .clip(CircleShape)
                         .background(Color.LightGray.copy(alpha = 0.3f))
                         .clickable(enabled = !isLoading) {
-                            val options = listOf("Take Photo", "Choose from Gallery")
-                            androidx.appcompat.app.AlertDialog
-                                .Builder(context)
-                                .setTitle("Select Option")
-                                .setItems(options.toTypedArray()) { _, which ->
-                                    when (which) {
-                                        0 -> {
-                                            val cameraIntent = Intent(MediaStore.ACTION_IMAGE_CAPTURE)
-                                            cameraLauncher.launch(cameraIntent)
-                                        }
-                                        1 -> galleryLauncher.launch("image/*")
-                                    }
-                                }
-                                .show()
+                            // ✅ Show Compose dialog instead of AlertDialog
+                            showImageSourceDialog = true
                         },
                     contentAlignment = Alignment.Center
                 ) {
@@ -277,14 +325,14 @@ fun DetailScreen(
             Spacer(modifier = Modifier.height(32.dp))
 
             Column(modifier = Modifier.fillMaxWidth()) {
-                Text("Role", fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                Text("Profession", fontSize = 14.sp, fontWeight = FontWeight.Medium)
                 ExposedDropdownMenuBox(
                     expanded = isDropdownExpanded,
                     onExpandedChange = { if (!isLoading) isDropdownExpanded = it },
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     OutlinedTextField(
-                        value = selectedRole,
+                        value = selectedProfession,
                         onValueChange = {},
                         readOnly = true,
                         enabled = !isLoading,
@@ -305,16 +353,35 @@ fun DetailScreen(
                         expanded = isDropdownExpanded,
                         onDismissRequest = { isDropdownExpanded = false }
                     ) {
-                        roleOptions.forEach { role ->
+                        professionOptions.forEach { profession ->
                             DropdownMenuItem(
-                                text = { Text(role) },
+                                text = { Text(profession) },
                                 onClick = {
-                                    selectedRole = role
+                                    selectedProfession = profession
                                     isDropdownExpanded = false
+                                    // Show custom input field if "Other (Please specify)" is selected
+                                    showCustomInput = profession == "Other (Please specify)"
+                                    if (!showCustomInput) {
+                                        customProfession = "" // Clear custom input if switching away
+                                    }
                                 }
                             )
                         }
                     }
+                }
+
+                // ✅ Custom profession input field (appears when "Other" is selected)
+                if (showCustomInput) {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    OutlinedTextField(
+                        value = customProfession,
+                        onValueChange = { customProfession = it },
+                        enabled = !isLoading,
+                        modifier = Modifier.fillMaxWidth(),
+                        placeholder = { Text("Please specify your profession", color = Color.Gray) },
+                        shape = RoundedCornerShape(8.dp),
+                        singleLine = true
+                    )
                 }
             }
 
@@ -323,19 +390,36 @@ fun DetailScreen(
             Button(
                 onClick = {
                     // ✅ FLEXIBLE VALIDATION: At least one field must be filled
-                    val hasRole = selectedRole.isNotEmpty()
+                    val hasProfession = selectedProfession.isNotEmpty()
                     val hasImage = imageUri != null || capturedImage != null
 
-                    if (!hasRole && !hasImage) {
+                    // Validate custom profession input if "Other" is selected
+                    if (selectedProfession == "Other (Please specify)" && customProfession.trim().isEmpty()) {
                         Toast.makeText(
                             context,
-                            "Please add a profile photo or select a role to continue",
+                            "Please specify your profession",
                             Toast.LENGTH_LONG
                         ).show()
                         return@Button
                     }
 
-                    onContinue(selectedRole, imageUri, capturedImage) { loading ->
+                    if (!hasProfession && !hasImage) {
+                        Toast.makeText(
+                            context,
+                            "Please add a profile photo or select a profession to continue",
+                            Toast.LENGTH_LONG
+                        ).show()
+                        return@Button
+                    }
+
+                    // Use custom profession if "Other" was selected, otherwise use dropdown selection
+                    val finalProfession = if (selectedProfession == "Other (Please specify)") {
+                        customProfession.trim()
+                    } else {
+                        selectedProfession
+                    }
+
+                    onContinue(finalProfession, imageUri, capturedImage) { loading ->
                         isLoading = loading
                     }
                 },

@@ -96,6 +96,42 @@ class ProfileActivity : ComponentActivity() {
     }
 }
 
+// ✅ NEW: Composable to get user initial from name or email
+@Composable
+fun getUserInitial(name: String, email: String): String {
+    return when {
+        name.isNotBlank() && name != "Unknown User" -> {
+            // Get first letter of first name
+            name.trim().firstOrNull()?.uppercase() ?: "U"
+        }
+        email.isNotBlank() && email != "No Email" -> {
+            // Get first letter of email
+            email.trim().firstOrNull()?.uppercase() ?: "U"
+        }
+        else -> "U"
+    }
+}
+
+// ✅ NEW: Generate color based on the initial letter
+@Composable
+fun getColorForInitial(initial: String): Color {
+    val colors = listOf(
+        Color(0xFF0288D1), // Blue
+        Color(0xFF00796B), // Teal
+        Color(0xFF5E35B1), // Purple
+        Color(0xFFD32F2F), // Red
+        Color(0xFFF57C00), // Orange
+        Color(0xFF388E3C), // Green
+        Color(0xFFC2185B), // Pink
+        Color(0xFF7B1FA2), // Deep Purple
+        Color(0xFF1976D2), // Blue
+        Color(0xFF00897B)  // Teal
+    )
+
+    val index = (initial.firstOrNull()?.code ?: 0) % colors.size
+    return colors[index]
+}
+
 // 🔹 Profile Screen Composable
 @Composable
 fun ProfileScreen(
@@ -114,6 +150,10 @@ fun ProfileScreen(
     val isGoogleUser = currentUser?.providerData?.any {
         it.providerId == GoogleAuthProvider.PROVIDER_ID
     } ?: false
+
+    // ✅ Get user initial for placeholder
+    val userInitial = getUserInitial(name, email)
+    val initialColor = getColorForInitial(userInitial)
 
     Scaffold(
         bottomBar = { BottomNavigationBar(currentScreen = "profile") }
@@ -147,19 +187,19 @@ fun ProfileScreen(
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // 🔹 Profile image - MODIFIED with better default placeholder
+            // ✅ Profile image with Initial Placeholder
             Box(
                 modifier = Modifier
                     .size(110.dp)
                     .clip(CircleShape)
                     .background(
-                        if (profileImageUrl != null) Color.Transparent else Color(0xFF0288D1)
+                        if (profileImageUrl.isNullOrEmpty()) initialColor else Color.Transparent
                     )
                     .border(2.dp, Color(0xFF0288D1), CircleShape)
                     .align(Alignment.CenterHorizontally),
                 contentAlignment = Alignment.Center
             ) {
-                if (profileImageUrl != null && profileImageUrl.isNotEmpty()) {
+                if (!profileImageUrl.isNullOrEmpty()) {
                     // ✅ Display user's uploaded profile picture
                     Image(
                         painter = rememberAsyncImagePainter(profileImageUrl),
@@ -170,12 +210,12 @@ fun ProfileScreen(
                         contentScale = ContentScale.Crop
                     )
                 } else {
-                    // ✅ Default placeholder icon with colored background
-                    Icon(
-                        imageVector = Icons.Default.Person,
-                        contentDescription = "Default Profile Picture",
-                        tint = Color.White,
-                        modifier = Modifier.size(60.dp)
+                    // ✅ Display initial letter with white color
+                    Text(
+                        text = userInitial,
+                        fontSize = 48.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
                     )
                 }
             }
@@ -263,7 +303,7 @@ fun ProfileScreen(
     }
 }
 
-// 🔹 Reusable Profile Option Row - FIXED UI
+// 🔹 Reusable Profile Option Row
 @Composable
 fun ProfileOption(
     title: String,
