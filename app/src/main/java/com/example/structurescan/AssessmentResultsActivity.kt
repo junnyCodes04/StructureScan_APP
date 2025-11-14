@@ -449,6 +449,9 @@ fun AssessmentResultsScreen(
     var selectedImageUri by remember { mutableStateOf<Uri?>(null) }
     var showImageViewer by remember { mutableStateOf(false) }
 
+    // ✅ NEW: Track re-analysis usage
+    var hasReanalyzed by remember { mutableStateOf(false) }
+
     val SHOW_THRESHOLD = 0.30f
 
     // ✅ SINGLE BackHandler - blocks during saving, navigates to Dashboard otherwise
@@ -748,117 +751,117 @@ fun AssessmentResultsScreen(
                             )
                         }
 
-                            Spacer(Modifier.height(20.dp))
+                        Spacer(Modifier.height(20.dp))
 
-                            // ✅ ALWAYS show Building Information section
-                            ExpandableSection(title = "Building Information", trailingContent = {
-                                IconButton(onClick = onEditBuildingInfo) {
-                                    Icon(Icons.Default.Edit, contentDescription = "Edit",
-                                        tint = Color(0xFF6366F1), modifier = Modifier.size(20.dp))
-                                }
-                            }) {
-                                Card(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    shape = RoundedCornerShape(12.dp),
-                                    colors = CardDefaults.cardColors(containerColor = Color.White),
-                                    elevation = CardDefaults.cardElevation(2.dp)
-                                ) {
-                                    Column(modifier = Modifier.padding(20.dp)) {
-                                        val hasBuildingInfo = buildingType.isNotEmpty() || constructionYear.isNotEmpty() ||
-                                                renovationYear.isNotEmpty() || floors.isNotEmpty() || material.isNotEmpty() ||
-                                                foundation.isNotEmpty() || environment.isNotEmpty() || previousIssues.isNotEmpty() ||
-                                                occupancy.isNotEmpty() || environmentalRisks.isNotEmpty() || notes.isNotEmpty()
+                        // ✅ ALWAYS show Building Information section
+                        ExpandableSection(title = "Building Information", trailingContent = {
+                            IconButton(onClick = onEditBuildingInfo) {
+                                Icon(Icons.Default.Edit, contentDescription = "Edit",
+                                    tint = Color(0xFF6366F1), modifier = Modifier.size(20.dp))
+                            }
+                        }) {
+                            Card(
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(12.dp),
+                                colors = CardDefaults.cardColors(containerColor = Color.White),
+                                elevation = CardDefaults.cardElevation(2.dp)
+                            ) {
+                                Column(modifier = Modifier.padding(20.dp)) {
+                                    val hasBuildingInfo = buildingType.isNotEmpty() || constructionYear.isNotEmpty() ||
+                                            renovationYear.isNotEmpty() || floors.isNotEmpty() || material.isNotEmpty() ||
+                                            foundation.isNotEmpty() || environment.isNotEmpty() || previousIssues.isNotEmpty() ||
+                                            occupancy.isNotEmpty() || environmentalRisks.isNotEmpty() || notes.isNotEmpty()
 
-                                        if (!hasBuildingInfo) {
-                                            // ✅ Show friendly message when no building info provided
-                                            Column(
-                                                modifier = Modifier.fillMaxWidth(),
-                                                horizontalAlignment = Alignment.CenterHorizontally
-                                            ) {
-                                                Icon(
-                                                    Icons.Default.Info,
-                                                    contentDescription = "No info",
-                                                    tint = Color(0xFF9CA3AF),
-                                                    modifier = Modifier.size(48.dp)
-                                                )
-                                                Spacer(Modifier.height(12.dp))
-                                                Text(
-                                                    "No Building Information Available",
-                                                    fontSize = 16.sp,
-                                                    fontWeight = FontWeight.SemiBold,
-                                                    color = Color(0xFF374151),
-                                                    textAlign = TextAlign.Center
-                                                )
-                                                Spacer(Modifier.height(8.dp))
-                                                Text(
-                                                    "Tap the edit icon above to add details about your structure for more accurate assessments.",
-                                                    fontSize = 14.sp,
-                                                    color = Color(0xFF6B7280),
-                                                    textAlign = TextAlign.Center,
-                                                    lineHeight = 20.sp
-                                                )
-                                            }
-                                        } else {
-                                            // ✅ Show building info when available
-                                            Row(
-                                                modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
-                                                horizontalArrangement = Arrangement.spacedBy(24.dp)
-                                            ) {
-                                                if (buildingType.isNotEmpty()) {
-                                                    Column(Modifier.weight(1f)) {
-                                                        Text("TYPE", fontSize = 11.sp, color = Color.Gray, fontWeight = FontWeight.Medium)
-                                                        Spacer(Modifier.height(6.dp))
-                                                        Text(buildingType, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
-                                                    }
-                                                }
-                                                if (floors.isNotEmpty()) {
-                                                    Column(Modifier.weight(1f)) {
-                                                        Text("FLOORS", fontSize = 11.sp, color = Color.Gray, fontWeight = FontWeight.Medium)
-                                                        Spacer(Modifier.height(6.dp))
-                                                        Text(floors.replace(" Floor", "").replace(" Floors", ""), fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
-                                                    }
+                                    if (!hasBuildingInfo) {
+                                        // ✅ Show friendly message when no building info provided
+                                        Column(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalAlignment = Alignment.CenterHorizontally
+                                        ) {
+                                            Icon(
+                                                Icons.Default.Info,
+                                                contentDescription = "No info",
+                                                tint = Color(0xFF9CA3AF),
+                                                modifier = Modifier.size(48.dp)
+                                            )
+                                            Spacer(Modifier.height(12.dp))
+                                            Text(
+                                                "No Building Information Available",
+                                                fontSize = 16.sp,
+                                                fontWeight = FontWeight.SemiBold,
+                                                color = Color(0xFF374151),
+                                                textAlign = TextAlign.Center
+                                            )
+                                            Spacer(Modifier.height(8.dp))
+                                            Text(
+                                                "Tap the edit icon above to add details about your structure for more accurate assessments.",
+                                                fontSize = 14.sp,
+                                                color = Color(0xFF6B7280),
+                                                textAlign = TextAlign.Center,
+                                                lineHeight = 20.sp
+                                            )
+                                        }
+                                    } else {
+                                        // ✅ Show building info when available
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
+                                            horizontalArrangement = Arrangement.spacedBy(24.dp)
+                                        ) {
+                                            if (buildingType.isNotEmpty()) {
+                                                Column(Modifier.weight(1f)) {
+                                                    Text("TYPE", fontSize = 11.sp, color = Color.Gray, fontWeight = FontWeight.Medium)
+                                                    Spacer(Modifier.height(6.dp))
+                                                    Text(buildingType, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
                                                 }
                                             }
-
-                                            Row(
-                                                modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
-                                                horizontalArrangement = Arrangement.spacedBy(24.dp)
-                                            ) {
-                                                if (material.isNotEmpty()) {
-                                                    Column(Modifier.weight(1f)) {
-                                                        Text("MATERIAL", fontSize = 11.sp, color = Color.Gray, fontWeight = FontWeight.Medium)
-                                                        Spacer(Modifier.height(6.dp))
-                                                        Text(material, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
-                                                    }
-                                                }
-                                                if (constructionYear.isNotEmpty()) {
-                                                    Column(Modifier.weight(1f)) {
-                                                        Text("BUILT", fontSize = 11.sp, color = Color.Gray, fontWeight = FontWeight.Medium)
-                                                        Spacer(Modifier.height(6.dp))
-                                                        Text(constructionYear, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
-                                                    }
+                                            if (floors.isNotEmpty()) {
+                                                Column(Modifier.weight(1f)) {
+                                                    Text("FLOORS", fontSize = 11.sp, color = Color.Gray, fontWeight = FontWeight.Medium)
+                                                    Spacer(Modifier.height(6.dp))
+                                                    Text(floors.replace(" Floor", "").replace(" Floors", ""), fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
                                                 }
                                             }
+                                        }
 
-                                            if (renovationYear.isNotEmpty()) BuildingInfoRow("Last Renovation", renovationYear.ifEmpty { "Never" })
-                                            if (foundation.isNotEmpty()) BuildingInfoRow("Foundation Type", foundation)
-                                            if (environment.isNotEmpty()) BuildingInfoRow("Environment", environment)
-                                            if (occupancy.isNotEmpty()) BuildingInfoRow("Occupancy Level", occupancy)
-                                            if (previousIssues.isNotEmpty()) BuildingInfoRow("Previous Issues", previousIssues.joinToString(", ").ifEmpty { "None" })
-                                            if (environmentalRisks.isNotEmpty()) BuildingInfoRow("Environmental Risk", environmentalRisks.firstOrNull() ?: "None")
-
-                                            if (notes.isNotEmpty()) {
-                                                HorizontalDivider(color = Color(0xFFE0E0E0), modifier = Modifier.padding(vertical = 12.dp))
-                                                Text("Additional Notes", fontSize = 12.sp, color = Color.Gray, fontWeight = FontWeight.Medium)
-                                                Spacer(Modifier.height(8.dp))
-                                                Text(notes, fontSize = 13.sp, color = Color.Black, lineHeight = 20.sp)
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
+                                            horizontalArrangement = Arrangement.spacedBy(24.dp)
+                                        ) {
+                                            if (material.isNotEmpty()) {
+                                                Column(Modifier.weight(1f)) {
+                                                    Text("MATERIAL", fontSize = 11.sp, color = Color.Gray, fontWeight = FontWeight.Medium)
+                                                    Spacer(Modifier.height(6.dp))
+                                                    Text(material, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                                                }
                                             }
+                                            if (constructionYear.isNotEmpty()) {
+                                                Column(Modifier.weight(1f)) {
+                                                    Text("BUILT", fontSize = 11.sp, color = Color.Gray, fontWeight = FontWeight.Medium)
+                                                    Spacer(Modifier.height(6.dp))
+                                                    Text(constructionYear, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                                                }
+                                            }
+                                        }
+
+                                        if (renovationYear.isNotEmpty()) BuildingInfoRow("Last Renovation", renovationYear.ifEmpty { "Never" })
+                                        if (foundation.isNotEmpty()) BuildingInfoRow("Foundation Type", foundation)
+                                        if (environment.isNotEmpty()) BuildingInfoRow("Environment", environment)
+                                        if (occupancy.isNotEmpty()) BuildingInfoRow("Occupancy Level", occupancy)
+                                        if (previousIssues.isNotEmpty()) BuildingInfoRow("Previous Issues", previousIssues.joinToString(", ").ifEmpty { "None" })
+                                        if (environmentalRisks.isNotEmpty()) BuildingInfoRow("Environmental Risk", environmentalRisks.firstOrNull() ?: "None")
+
+                                        if (notes.isNotEmpty()) {
+                                            HorizontalDivider(color = Color(0xFFE0E0E0), modifier = Modifier.padding(vertical = 12.dp))
+                                            Text("Additional Notes", fontSize = 12.sp, color = Color.Gray, fontWeight = FontWeight.Medium)
+                                            Spacer(Modifier.height(8.dp))
+                                            Text(notes, fontSize = 13.sp, color = Color.Black, lineHeight = 20.sp)
                                         }
                                     }
                                 }
                             }
+                        }
 
-                            Spacer(Modifier.height(20.dp))
+                        Spacer(Modifier.height(20.dp))
 
                         Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) {
                             Column(modifier = Modifier.padding(16.dp)) {
@@ -970,15 +973,36 @@ fun AssessmentResultsScreen(
                         Spacer(Modifier.height(20.dp))
 
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                            OutlinedButton(onClick = {
-                                showReanalyzeDialog = true
-                            }, modifier = Modifier.weight(1f), shape = RoundedCornerShape(8.dp)) {
+                            OutlinedButton(
+                                onClick = {
+                                    if (!hasReanalyzed) {
+                                        showReanalyzeDialog = true
+                                    }
+                                },
+                                enabled = !hasReanalyzed, // ✅ disables after 1 use
+                                modifier = Modifier.weight(1f),
+                                shape = RoundedCornerShape(8.dp),
+                                colors = ButtonDefaults.outlinedButtonColors(
+                                    containerColor = if (!hasReanalyzed) Color.White else Color(0xFFF0F0F0),
+                                    contentColor = Color(0xFF0288D1),
+                                    disabledContainerColor = Color(0xFFE0E0E0),
+                                    disabledContentColor = Color.Gray
+                                )
+                            ) {
                                 Icon(Icons.Default.Refresh, contentDescription = "Re-analyze", modifier = Modifier.size(16.dp))
                                 Spacer(Modifier.width(6.dp))
-                                Text("Re-analyze", fontSize = 14.sp)
+                                Text(
+                                    text = if (hasReanalyzed) "Used" else "Re-analyze",
+                                    fontSize = 14.sp,
+                                    color = if (hasReanalyzed) Color.Gray else Color(0xFF0288D1)
+                                )
                             }
 
-                            OutlinedButton(onClick = { showDownloadDialog = true }, modifier = Modifier.weight(1f), shape = RoundedCornerShape(8.dp)) {
+                            OutlinedButton(
+                                onClick = { showDownloadDialog = true },
+                                modifier = Modifier.weight(1f),
+                                shape = RoundedCornerShape(8.dp)
+                            ) {
                                 Icon(Icons.Default.Download, contentDescription = "Download", modifier = Modifier.size(16.dp))
                                 Spacer(Modifier.width(6.dp))
                                 Text("Download", fontSize = 14.sp)
@@ -1010,6 +1034,7 @@ fun AssessmentResultsScreen(
                                 confirmButton = {
                                     Button(
                                         onClick = {
+                                            hasReanalyzed = true // ✅ Mark as used FIRST
                                             showReanalyzeDialog = false
                                             coroutineScope.launch {
                                                 isAnalyzing = true
@@ -1170,46 +1195,6 @@ fun FullScreenImageViewer(imageUri: Uri, onDismiss: () -> Unit) {
                 Icon(imageVector = Icons.Default.Close, contentDescription = "Close", tint = Color.White, modifier = Modifier.size(32.dp))
             }
             Image(painter = rememberAsyncImagePainter(imageUri), contentDescription = "Full screen image", modifier = Modifier.fillMaxSize().clickable { onDismiss() }, contentScale = ContentScale.Fit)
-        }
-    }
-}
-
-@Composable
-fun RecommendationCard(recommendation: DamageRecommendation, aiConfidence: Float, damageLevel: String) {
-    Card(modifier = Modifier.fillMaxWidth().border(1.dp, Color(0xFFE0E0E0), RoundedCornerShape(12.dp)), shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White), elevation = CardDefaults.cardElevation(0.dp)) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Text(text = recommendation.title, fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
-                Box(modifier = Modifier.background(recommendation.severityBgColor, RoundedCornerShape(4.dp)).padding(horizontal = 8.dp, vertical = 4.dp)) {
-                    Text(text = recommendation.severity, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = recommendation.severityColor)
-                }
-            }
-            Spacer(Modifier.height(8.dp))
-            Text(recommendation.description, fontSize = 13.sp, color = Color.Gray, lineHeight = 18.sp)
-            Spacer(Modifier.height(12.dp))
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Text("AI Confidence", fontSize = 12.sp, color = Color.Gray)
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    LinearProgressIndicator(
-                        progress = { aiConfidence },
-                        modifier = Modifier.width(100.dp).height(6.dp),
-                        color = getConfidenceColor(damageLevel),
-                        trackColor = Color(0xFFE0E0E0)
-                    )
-                    Spacer(Modifier.width(8.dp))
-                    Text("${(aiConfidence * 100).toInt()}%", fontSize = 12.sp, fontWeight = FontWeight.Medium, color = Color.Gray)
-                }
-            }
-            Spacer(Modifier.height(12.dp))
-            Text("Recommended Actions:", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Color.Black)
-            Spacer(Modifier.height(8.dp))
-            recommendation.actions.forEach { action ->
-                Row(modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
-                    Text("•", fontSize = 13.sp, color = Color.Gray, modifier = Modifier.padding(end = 8.dp))
-                    Text(action, fontSize = 13.sp, color = Color.Gray, lineHeight = 18.sp)
-                }
-            }
         }
     }
 }

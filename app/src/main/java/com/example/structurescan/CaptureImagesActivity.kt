@@ -13,21 +13,26 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.CameraAlt
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.PhotoLibrary
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import coil.compose.rememberAsyncImagePainter
@@ -37,7 +42,6 @@ class CaptureImagesActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Retrieve the assessment name from GuideActivity using the constant
         val assessmentName = intent.getStringExtra(IntentKeys.ASSESSMENT_NAME) ?: "Unnamed Assessment"
 
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA)
@@ -56,7 +60,6 @@ class CaptureImagesActivity : ComponentActivity() {
                     },
                     onViewImage = { images ->
                         val intent = Intent(this, SavedPhotoActivity::class.java)
-                        // ✅ Convert Uri to String for SavedPhotoActivity
                         intent.putStringArrayListExtra(
                             IntentKeys.CAPTURED_IMAGES,
                             ArrayList(images.map { it.toString() })
@@ -66,7 +69,6 @@ class CaptureImagesActivity : ComponentActivity() {
                     },
                     onProceed = { images ->
                         val intent = Intent(this, BuildingInfoActivity::class.java)
-                        // ✅ Convert Uri to String for BuildingInfoActivity
                         intent.putStringArrayListExtra(
                             IntentKeys.FINAL_IMAGES,
                             ArrayList(images.map { it.toString() })
@@ -89,17 +91,19 @@ fun CameraScreen(
 ) {
     val context = LocalContext.current
     val images = remember { mutableStateListOf<Uri>() }
+    var currentImageIndex by remember { mutableStateOf(0) }
+    var showInstructions by remember { mutableStateOf(true) }
 
-    // ✅ FIXED: Activity Result Launcher to receive updated images from SavedPhotoActivity
+    // Activity Result Launcher
     val savedPhotoLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
     ) { result ->
         if (result.resultCode == ComponentActivity.RESULT_OK) {
-            // ✅ Get String list and convert back to Uri
             val updatedImagesStrings = result.data?.getStringArrayListExtra(IntentKeys.UPDATED_IMAGES)
             if (updatedImagesStrings != null) {
                 images.clear()
                 images.addAll(updatedImagesStrings.map { Uri.parse(it) })
+                currentImageIndex = if (images.isNotEmpty()) images.size - 1 else 0
             }
         }
     }
@@ -109,12 +113,12 @@ fun CameraScreen(
         rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { success ->
             if (success && pendingPhotoUri != null) {
                 images.add(pendingPhotoUri!!)
+                currentImageIndex = images.size - 1
                 Toast.makeText(context, "Photo captured", Toast.LENGTH_SHORT).show()
             }
             pendingPhotoUri = null
         }
 
-    // Extract the capture logic into a function to avoid duplication
     val capturePhoto = {
         if (images.size >= 7) {
             Toast.makeText(context, "Max 7 photos allowed", Toast.LENGTH_SHORT).show()
@@ -131,12 +135,17 @@ fun CameraScreen(
         }
     }
 
+    // ✅ Instruction Dialog
+    if (showInstructions) {
+        InstructionDialog(onDismiss = { showInstructions = false })
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(Color.White)
     ) {
-        // --- Top Bar ---
+        // Top Bar
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -153,7 +162,7 @@ fun CameraScreen(
             )
         }
 
-        // --- Camera Preview Area ---
+        // ✅ Image Preview with Swipe Gesture
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -186,16 +195,78 @@ fun CameraScreen(
                     )
                 }
             } else {
-                Image(
-                    painter = rememberAsyncImagePainter(images.last()),
-                    contentDescription = "Last Captured",
-                    modifier = Modifier.fillMaxSize(),
-                    contentScale = ContentScale.Crop
-                )
+                // Image with swipe gesture
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .pointerInput(Unit) {
+                            detectHorizontalDragGestures { _, dragAmount ->
+                                if (dragAmount > 50 && currentImageIndex > 0) {
+                                    currentImageIndex--
+                                } else if (dragAmount < -50 && currentImageIndex < images.size - 1) {
+                                    currentImageIndex++
+                                }
+                            }
+                        }
+                ) {
+                    Image(
+                        painter = rememberAsyncImagePainter(images[currentImageIndex]),
+                        contentDescription = "Captured Image ${currentImageIndex + 1}",
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop
+                    )
+
+                    // ✅ Image counter badge
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(16.dp)
+                            .background(Color.Black.copy(alpha = 0.6f), RoundedCornerShape(12.dp))
+                            .padding(horizontal = 12.dp, vertical = 6.dp)
+                    ) {
+                        Text(
+                            text = "${currentImageIndex + 1} / ${images.size}",
+                            color = Color.White,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+
+                    // ✅ Swipe hint (only show when multiple images)
+                    if (images.size > 1) {
+                        Row(
+                            modifier = Modifier
+                                .align(Alignment.BottomCenter)
+                                .padding(bottom = 16.dp)
+                                .background(Color.Black.copy(alpha = 0.5f), RoundedCornerShape(20.dp))
+                                .padding(horizontal = 16.dp, vertical = 8.dp),
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                Icons.Default.SwipeLeft,
+                                contentDescription = null,
+                                tint = Color.White,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Text(
+                                "Swipe to view photos",
+                                color = Color.White,
+                                fontSize = 12.sp
+                            )
+                            Icon(
+                                Icons.Default.SwipeRight,
+                                contentDescription = null,
+                                tint = Color.White,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                    }
+                }
             }
         }
 
-        // --- Bottom Controls Section ---
+        // Bottom Controls
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -217,14 +288,11 @@ fun CameraScreen(
                 horizontalArrangement = Arrangement.SpaceEvenly,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Gallery Button - ✅ Now uses ActivityResultLauncher
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
+                // Gallery Button
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     IconButton(
                         onClick = {
                             val intent = Intent(context, SavedPhotoActivity::class.java)
-                            // ✅ Convert Uri to String when passing to SavedPhotoActivity
                             intent.putStringArrayListExtra(
                                 IntentKeys.CAPTURED_IMAGES,
                                 ArrayList(images.map { it.toString() })
@@ -241,24 +309,18 @@ fun CameraScreen(
                             modifier = Modifier.size(30.dp)
                         )
                     }
-                    Text(
-                        text = "Gallery",
-                        color = Color.Gray,
-                        style = MaterialTheme.typography.bodySmall
-                    )
+                    Text("Gallery", color = Color.Gray, style = MaterialTheme.typography.bodySmall)
                 }
 
                 // Capture Button
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     IconButton(
                         onClick = capturePhoto,
                         modifier = Modifier
                             .size(70.dp)
                             .background(
                                 if (images.size < 7) Color(0xFF6366F1) else Color.Gray,
-                                androidx.compose.foundation.shape.CircleShape
+                                CircleShape
                             )
                     ) {
                         Icon(
@@ -268,11 +330,7 @@ fun CameraScreen(
                             modifier = Modifier.size(35.dp)
                         )
                     }
-                    Text(
-                        text = "Capture",
-                        color = Color.Gray,
-                        style = MaterialTheme.typography.bodySmall
-                    )
+                    Text("Capture", color = Color.Gray, style = MaterialTheme.typography.bodySmall)
                 }
 
                 // Proceed Button
@@ -306,6 +364,89 @@ fun CameraScreen(
                 }
             }
         }
+    }
+}
+
+// ✅ Instruction Dialog Component
+@Composable
+fun InstructionDialog(onDismiss: () -> Unit) {
+    Dialog(onDismissRequest = onDismiss) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = Color.White)
+        ) {
+            Column(
+                modifier = Modifier.padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Icon(
+                    Icons.Default.Info,
+                    contentDescription = "Instructions",
+                    tint = Color(0xFF6366F1),
+                    modifier = Modifier.size(48.dp)
+                )
+
+                Text(
+                    "How to Capture Photos",
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.Black
+                )
+
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    InstructionItem(
+                        icon = Icons.Default.CameraAlt,
+                        text = "Tap the camera button to capture photos"
+                    )
+                    InstructionItem(
+                        icon = Icons.Default.SwipeLeft,
+                        text = "Swipe left or right to view captured photos"
+                    )
+                    InstructionItem(
+                        icon = Icons.Default.PhotoLibrary,
+                        text = "Tap Gallery to review and delete photos"
+                    )
+                    InstructionItem(
+                        icon = Icons.Default.Check,
+                        text = "Tap the checkmark when ready to proceed"
+                    )
+                }
+
+                Button(
+                    onClick = onDismiss,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF6366F1))
+                ) {
+                    Text("Got it!", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun InstructionItem(icon: androidx.compose.ui.graphics.vector.ImageVector, text: String) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            icon,
+            contentDescription = null,
+            tint = Color(0xFF6366F1),
+            modifier = Modifier.size(24.dp)
+        )
+        Text(
+            text,
+            fontSize = 14.sp,
+            color = Color.Black,
+            textAlign = TextAlign.Start
+        )
     }
 }
 

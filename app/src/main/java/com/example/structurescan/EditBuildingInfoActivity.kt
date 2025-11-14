@@ -456,7 +456,6 @@ fun EditBuildingInfoScreen(
                 onClick = { onBack() },
                 modifier = Modifier
                     .size(40.dp)
-                    .background(Color(0xFFF3F4F6), CircleShape)
                     .align(Alignment.CenterStart)
             ) {
                 Icon(

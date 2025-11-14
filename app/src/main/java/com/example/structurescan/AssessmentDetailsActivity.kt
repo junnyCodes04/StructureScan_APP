@@ -43,8 +43,16 @@ import com.example.structurescan.Utils.PdfReportGenerator
 import com.example.structurescan.Utils.PdfAssessmentData
 import java.util.*
 
+data class DetailDetectedIssue(
+    val damageType: String = "Unknown",
+    val damageLevel: String = "Low",
+    val confidence: Float = 0f
+)
+
 data class DetailImageAssessment(
     val imageUrl: String = "",
+    val detectedIssues: List<DetailDetectedIssue> = emptyList(),
+    val imageRisk: String = "Low",
     val damageType: String = "Unknown",
     val damageLevel: String = "Low",
     val confidence: Float = 0f,
@@ -333,24 +341,25 @@ fun AssessmentDetailsScreen(
                         .document(assessmentId)
                         .get()
                         .await()
+
                     if (document.exists()) {
                         val assessmentsList = document.get("assessments") as? List<HashMap<String, Any>>
                         if (assessmentsList != null) {
                             imageAssessments = assessmentsList.map { assessmentMap ->
+                                // Parse detectedIssues array
+                                val detectedIssuesRaw = assessmentMap["detectedIssues"] as? List<HashMap<String, Any>>
+                                val detectedIssues = detectedIssuesRaw?.map { issueMap ->
+                                    DetailDetectedIssue(
+                                        damageType = issueMap["type"] as? String ?: "Unknown",
+                                        damageLevel = issueMap["level"] as? String ?: "Low",
+                                        confidence = (issueMap["confidence"] as? Number)?.toFloat() ?: 0f
+                                    )
+                                } ?: emptyList()
+
                                 DetailImageAssessment(
                                     imageUrl = assessmentMap["imageUri"] as? String ?: "",
-                                    damageType = assessmentMap["damageType"] as? String ?: "Unknown",
-                                    damageLevel = assessmentMap["damageLevel"] as? String ?: "Low",
-                                    confidence = (assessmentMap["confidence"] as? Number)?.toFloat() ?: 0f,
-                                    crackLowConf = (assessmentMap["crackLowConf"] as? Number)?.toFloat() ?: 0f,
-                                    crackModerateConf = (assessmentMap["crackModerateConf"] as? Number)?.toFloat() ?: 0f,
-                                    crackHighConf = (assessmentMap["crackHighConf"] as? Number)?.toFloat() ?: 0f,
-                                    paintLowConf = (assessmentMap["paintLowConf"] as? Number)?.toFloat() ?: 0f,
-                                    paintModerateConf = (assessmentMap["paintModerateConf"] as? Number)?.toFloat() ?: 0f,
-                                    paintHighConf = (assessmentMap["paintHighConf"] as? Number)?.toFloat() ?: 0f,
-                                    algaeLowConf = (assessmentMap["algaeLowConf"] as? Number)?.toFloat() ?: 0f,
-                                    algaeModerateConf = (assessmentMap["algaeModerateConf"] as? Number)?.toFloat() ?: 0f,
-                                    algaeHighConf = (assessmentMap["algaeHighConf"] as? Number)?.toFloat() ?: 0f
+                                    detectedIssues = detectedIssues,
+                                    imageRisk = assessmentMap["imageRisk"] as? String ?: "Low"
                                 )
                             }
                         }
@@ -932,107 +941,144 @@ fun detailsGetConfidenceColor(damageLevel: String): Color {
 
 @Composable
 fun DetailsAnalyzedImageCard(imageNumber: Int, assessment: DetailImageAssessment, onImageClick: () -> Unit) {
-    val damageColor = when (assessment.damageLevel) {
+    val riskColor = when (assessment.imageRisk) {
         "High" -> Color(0xFFFFEBEE)
         "Moderate" -> Color(0xFFFFF3E0)
         "Low" -> Color(0xFFE8F5E9)
         else -> Color(0xFFF5F5F5)
     }
-    val badgeColor = when (assessment.damageLevel) {
+    val badgeColor = when (assessment.imageRisk) {
         "High" -> Color(0xFFD32F2F)
         "Moderate" -> Color(0xFFF57C00)
         "Low" -> Color(0xFF388E3C)
         else -> Color.Gray
     }
-    val confidenceBarColor = when (assessment.damageLevel) {
-        "High" -> Color(0xFFD32F2F)
-        else -> Color(0xFFF57C00)
-    }
 
-    Row(
+    Card(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { onImageClick() }
-            .padding(vertical = 8.dp),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-        verticalAlignment = Alignment.CenterVertically
+            .border(1.dp, Color(0xFFE0E0E0), RoundedCornerShape(12.dp)),
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        elevation = CardDefaults.cardElevation(0.dp)
     ) {
-        Box(
-            modifier = Modifier
-                .size(80.dp)
-                .background(Color(0xFFF5F5F5), RoundedCornerShape(8.dp))
-        ) {
-            if (assessment.imageUrl.isNotEmpty()) {
-                Image(
-                    painter = rememberAsyncImagePainter(assessment.imageUrl),
-                    contentDescription = "Image $imageNumber",
-                    modifier = Modifier.fillMaxSize(),
-                    contentScale = ContentScale.Crop
-                )
-            } else {
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        Icons.Default.BrokenImage,
-                        contentDescription = "No image",
-                        tint = Color.Gray,
-                        modifier = Modifier.size(32.dp)
-                    )
-                }
-            }
-        }
-        Column(
-            modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.spacedBy(4.dp)
-        ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            // Header with image and risk badge
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Text(
-                    "Image $imageNumber",
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = Color.Black
-                )
+                // Image thumbnail
                 Box(
                     modifier = Modifier
-                        .background(damageColor, RoundedCornerShape(4.dp))
-                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                        .size(80.dp)
+                        .background(Color(0xFFF5F5F5), RoundedCornerShape(8.dp))
+                        .clickable { onImageClick() }
                 ) {
+                    if (assessment.imageUrl.isNotEmpty()) {
+                        Image(
+                            painter = rememberAsyncImagePainter(assessment.imageUrl),
+                            contentDescription = "Image $imageNumber",
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Crop
+                        )
+                    } else {
+                        Box(
+                            modifier = Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                Icons.Default.BrokenImage,
+                                contentDescription = "No image",
+                                tint = Color.Gray,
+                                modifier = Modifier.size(32.dp)
+                            )
+                        }
+                    }
+                }
+
+                // Title and risk badge
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            "Image $imageNumber",
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.Black
+                        )
+                        Box(
+                            modifier = Modifier
+                                .background(riskColor, RoundedCornerShape(4.dp))
+                                .padding(horizontal = 8.dp, vertical = 4.dp)
+                        ) {
+                            Text(
+                                assessment.imageRisk.uppercase(),
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = badgeColor
+                            )
+                        }
+                    }
+
                     Text(
-                        assessment.damageLevel.uppercase(),
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = badgeColor
+                        "${assessment.detectedIssues.size} issue(s) detected",
+                        fontSize = 13.sp,
+                        color = Color.Gray
                     )
                 }
             }
-            Text(
-                "${assessment.damageType} Damage",
-                fontSize = 14.sp,
-                color = Color.Black
-            )
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                LinearProgressIndicator(
-                    progress = assessment.confidence,
-                    modifier = Modifier.weight(1f).height(8.dp),
-                    color = confidenceBarColor,
-                    trackColor = Color(0xFFE0E0E0)
-                )
+
+            Spacer(Modifier.height(12.dp))
+
+            // Display multiple issues
+            if (assessment.detectedIssues.isEmpty()) {
                 Text(
-                    "${(assessment.confidence * 100).toInt()}%",
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = Color.Black
+                    "No issues above 30% detected.",
+                    fontSize = 13.sp,
+                    color = Color.Gray,
+                    modifier = Modifier.padding(vertical = 8.dp)
                 )
+            } else {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    assessment.detectedIssues.sortedByDescending { it.confidence }.forEach { issue ->
+                        Column(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Text(
+                                "${issue.damageType} Damage",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = Color.Black
+                            )
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                LinearProgressIndicator(
+                                    progress = { issue.confidence },
+                                    modifier = Modifier.weight(1f).height(8.dp),
+                                    color = detailsGetConfidenceColor(issue.damageLevel),
+                                    trackColor = Color(0xFFE0E0E0)
+                                )
+                                Text(
+                                    "${(issue.confidence * 100).toInt()}%",
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = Color.Black
+                                )
+                            }
+                        }
+                    }
+                }
             }
         }
     }
