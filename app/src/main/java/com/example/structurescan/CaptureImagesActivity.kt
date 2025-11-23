@@ -55,8 +55,7 @@ class CaptureImagesActivity : ComponentActivity() {
                 CameraScreen(
                     assessmentName = assessmentName,
                     onBack = {
-                        val intent = Intent(this, GuideActivity::class.java)
-                        startActivity(intent)
+                        finish()
                     },
                     onViewImage = { images ->
                         val intent = Intent(this, SavedPhotoActivity::class.java)

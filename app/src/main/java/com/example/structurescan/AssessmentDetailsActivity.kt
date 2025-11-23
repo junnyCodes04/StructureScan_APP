@@ -64,7 +64,8 @@ data class DetailImageAssessment(
     val paintHighConf: Float = 0f,
     val algaeLowConf: Float = 0f,
     val algaeModerateConf: Float = 0f,
-    val algaeHighConf: Float = 0f
+    val algaeHighConf: Float = 0f,
+    val plainConf: Float = 0f
 )
 
 class AssessmentDetailsActivity : ComponentActivity() {
@@ -359,7 +360,8 @@ fun AssessmentDetailsScreen(
                                 DetailImageAssessment(
                                     imageUrl = assessmentMap["imageUri"] as? String ?: "",
                                     detectedIssues = detectedIssues,
-                                    imageRisk = assessmentMap["imageRisk"] as? String ?: "Low"
+                                    imageRisk = assessmentMap["imageRisk"] as? String ?: "Low",
+                                    plainConf = (assessmentMap["plainConf"] as? Number)?.toFloat() ?: 0f  // ✅ NEW: Parse plain confidence
                                 )
                             }
                         }
@@ -941,18 +943,28 @@ fun detailsGetConfidenceColor(damageLevel: String): Color {
 
 @Composable
 fun DetailsAnalyzedImageCard(imageNumber: Int, assessment: DetailImageAssessment, onImageClick: () -> Unit) {
-    val riskColor = when (assessment.imageRisk) {
-        "High" -> Color(0xFFFFEBEE)
-        "Moderate" -> Color(0xFFFFF3E0)
-        "Low" -> Color(0xFFE8F5E9)
+    // ✅ MODIFIED: Check for Plain surfaces first, then determine risk
+    val isPlainSurface = assessment.plainConf > 0.30f
+
+    val riskColor = when {
+        isPlainSurface -> Color(0xFFE8F5E9)  // ✅ NEW: Green for plain
+        assessment.imageRisk == "High" -> Color(0xFFFFEBEE)
+        assessment.imageRisk == "Moderate" -> Color(0xFFFFF3E0)
+        assessment.imageRisk == "Low" -> Color(0xFFE8F5E9)
+        assessment.imageRisk == "None" -> Color(0xFFE8F5E9)  // ✅ NEW: Handle "None" risk
         else -> Color(0xFFF5F5F5)
     }
-    val badgeColor = when (assessment.imageRisk) {
-        "High" -> Color(0xFFD32F2F)
-        "Moderate" -> Color(0xFFF57C00)
-        "Low" -> Color(0xFF388E3C)
+
+    val badgeColor = when {
+        isPlainSurface -> Color(0xFF2E7D32)  // ✅ NEW: Green badge for plain
+        assessment.imageRisk == "High" -> Color(0xFFD32F2F)
+        assessment.imageRisk == "Moderate" -> Color(0xFFF57C00)
+        assessment.imageRisk == "Low" -> Color(0xFF388E3C)
+        assessment.imageRisk == "None" -> Color(0xFF2E7D32)  // ✅ NEW
         else -> Color.Gray
     }
+
+    val badgeText = if (isPlainSurface) "PLAIN" else assessment.imageRisk.uppercase()  // ✅ NEW
 
     Card(
         modifier = Modifier
@@ -1019,7 +1031,7 @@ fun DetailsAnalyzedImageCard(imageNumber: Int, assessment: DetailImageAssessment
                                 .padding(horizontal = 8.dp, vertical = 4.dp)
                         ) {
                             Text(
-                                assessment.imageRisk.uppercase(),
+                                badgeText,  // ✅ MODIFIED: Use badgeText instead
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = badgeColor
@@ -1027,54 +1039,111 @@ fun DetailsAnalyzedImageCard(imageNumber: Int, assessment: DetailImageAssessment
                         }
                     }
 
+                    // ✅ MODIFIED: Show different message for Plain surfaces
                     Text(
-                        "${assessment.detectedIssues.size} issue(s) detected",
+                        if (isPlainSurface) "Clean surface detected" else "${assessment.detectedIssues.size} issue(s) detected",
                         fontSize = 13.sp,
-                        color = Color.Gray
+                        color = if (isPlainSurface) Color(0xFF2E7D32) else Color.Gray
                     )
                 }
             }
 
             Spacer(Modifier.height(12.dp))
 
-            // Display multiple issues
-            if (assessment.detectedIssues.isEmpty()) {
-                Text(
-                    "No issues above 30% detected.",
-                    fontSize = 13.sp,
-                    color = Color.Gray,
-                    modifier = Modifier.padding(vertical = 8.dp)
-                )
-            } else {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    assessment.detectedIssues.sortedByDescending { it.confidence }.forEach { issue ->
-                        Column(
+            // ✅ MODIFIED: Display multiple issues OR plain surface info
+            when {
+                isPlainSurface -> {
+                    // ✅ NEW: Show plain surface information
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.CheckCircle,
+                            contentDescription = "Clean",
+                            tint = Color(0xFF2E7D32),
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(Modifier.width(6.dp))
+                        Text(
+                            "Clean surface - No damage detected",
+                            fontSize = 12.sp,
+                            color = Color(0xFF2E7D32),
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+
+                    // ✅ Show plain confidence bar
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Text(
+                            "Plain Surface",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = Color.Black
+                        )
+                        Row(
                             modifier = Modifier.fillMaxWidth(),
-                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
+                            LinearProgressIndicator(
+                                progress = { assessment.plainConf },
+                                modifier = Modifier.weight(1f).height(8.dp),
+                                color = Color(0xFF2E7D32),  // Green for plain
+                                trackColor = Color(0xFFE0E0E0)
+                            )
                             Text(
-                                "${issue.damageType} Damage",
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Medium,
+                                "${(assessment.plainConf * 100).toInt()}%",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.SemiBold,
                                 color = Color.Black
                             )
-                            Row(
+                        }
+                    }
+                }
+                assessment.detectedIssues.isEmpty() -> {
+                    Text(
+                        "No significant issues detected.",
+                        fontSize = 13.sp,
+                        color = Color.Gray,
+                        modifier = Modifier.padding(vertical = 8.dp)
+                    )
+                }
+                else -> {
+                    // ✅ Show damage issues (existing logic)
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        assessment.detectedIssues.sortedByDescending { it.confidence }.forEach { issue ->
+                            Column(
                                 modifier = Modifier.fillMaxWidth(),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                verticalArrangement = Arrangement.spacedBy(4.dp)
                             ) {
-                                LinearProgressIndicator(
-                                    progress = { issue.confidence },
-                                    modifier = Modifier.weight(1f).height(8.dp),
-                                    color = detailsGetConfidenceColor(issue.damageLevel),
-                                    trackColor = Color(0xFFE0E0E0)
-                                )
                                 Text(
-                                    "${(issue.confidence * 100).toInt()}%",
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.SemiBold,
+                                    "${issue.damageType} Damage",
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Medium,
                                     color = Color.Black
                                 )
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    LinearProgressIndicator(
+                                        progress = { issue.confidence },
+                                        modifier = Modifier.weight(1f).height(8.dp),
+                                        color = detailsGetConfidenceColor(issue.damageLevel),
+                                        trackColor = Color(0xFFE0E0E0)
+                                    )
+                                    Text(
+                                        "${(issue.confidence * 100).toInt()}%",
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = Color.Black
+                                    )
+                                }
                             }
                         }
                     }

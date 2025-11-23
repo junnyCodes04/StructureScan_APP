@@ -80,6 +80,7 @@ data class ImageAssessment(
     val algaeLowConf: Float = 0f,
     val algaeModerateConf: Float = 0f,
     val algaeHighConf: Float = 0f,
+    val plainConf: Float = 0f,
     val firebaseImageUrl: String = "",
     val detectedIssues: List<DetectedIssue> = emptyList(),
     val imageRisk: String = "Low"
@@ -277,12 +278,11 @@ class AssessmentResultsActivity : ComponentActivity() {
             null
         }
     }
-
     fun saveAssessmentToFirebase(
         assessmentName: String, summary: AssessmentSummary, buildingType: String, constructionYear: String,
         renovationYear: String, floors: String, material: String, foundation: String, environment: String,
         previousIssues: List<String>, occupancy: String, environmentalRisks: List<String>, notes: String,
-        isReanalysis: Boolean = false  // ✅ ADD THIS PARAMETER
+        isReanalysis: Boolean = false
     ): Boolean {
         val currentUser = firebaseAuth.currentUser
         if (currentUser == null) {
@@ -291,7 +291,6 @@ class AssessmentResultsActivity : ComponentActivity() {
         val userId = currentUser.uid
 
         return try {
-            // ✅ MODIFIED: Reuse existing ID if re-analyzing, otherwise create new
             val assessmentId = if (isReanalysis && currentAssessmentId != null) {
                 currentAssessmentId!!
             } else {
@@ -305,14 +304,30 @@ class AssessmentResultsActivity : ComponentActivity() {
                     uploadImageToStorage(assessment.imageUri, userId, assessmentId, index)
                 } ?: throw Exception("Failed to upload image ${index + 1}")
 
-                val recommendationsForImage = assessment.detectedIssues.map { issue ->
-                    val rec = getRecommendation(issue.damageType, issue.damageLevel)
-                    hashMapOf(
-                        "title" to rec.title,
-                        "description" to rec.description,
-                        "severity" to rec.severity,
-                        "actions" to rec.actions
-                    )
+                // ✅ MODIFIED: Generate recommendations for all images, including Plain surfaces
+                val recommendationsForImage = if (assessment.detectedIssues.isEmpty() && assessment.plainConf > 0.30f) {
+                    // Plain surface with no issues - create a "Clean Surface" recommendation
+                    listOf(hashMapOf(
+                        "title" to "Clean Surface",
+                        "description" to "No structural damage or surface deterioration detected.",
+                        "severity" to "GOOD",
+                        "actions" to listOf(
+                            "Continue regular maintenance schedule",
+                            "Monitor during routine inspections",
+                            "No immediate action required"
+                        )
+                    ))
+                } else {
+                    // Detected issues - map them to recommendations as before
+                    assessment.detectedIssues.map { issue ->
+                        val rec = getRecommendation(issue.damageType, issue.damageLevel)
+                        hashMapOf(
+                            "title" to rec.title,
+                            "description" to rec.description,
+                            "severity" to rec.severity,
+                            "actions" to rec.actions
+                        )
+                    }
                 }
 
                 uploadedAssessments.add(hashMapOf(
@@ -328,6 +343,7 @@ class AssessmentResultsActivity : ComponentActivity() {
                     "algaeLowConf" to assessment.algaeLowConf,
                     "algaeModerateConf" to assessment.algaeModerateConf,
                     "algaeHighConf" to assessment.algaeHighConf,
+                    "plainConf" to assessment.plainConf,  // ✅ NEW: Added plain confidence
                     "imageUri" to firebaseImageUrl,
                     "localImageUri" to assessment.imageUri.toString(),
                     "detectedIssues" to assessment.detectedIssues.map {
@@ -512,32 +528,40 @@ fun AssessmentResultsScreen(
             val paintHigh = confidences.getOrNull(6) ?: 0f
             val paintLow = confidences.getOrNull(7) ?: 0f
             val paintMod = confidences.getOrNull(8) ?: 0f
+            val plainConf = confidences.getOrNull(9) ?: 0f  // ✅ NEW: Plain class
 
             val maxIndex = confidences.indices.maxByOrNull { confidences[it] } ?: 0
             val maxConfidence = confidences.getOrNull(maxIndex) ?: 0f
 
+            // ✅ MODIFIED: Handle Plain class in primary damage detection
             val (primaryDamageType, primaryDamageLevel) = when (maxIndex) {
                 0 -> "Algae" to "High"; 1 -> "Algae" to "Low"; 2 -> "Algae" to "Moderate"
                 3 -> "Crack" to "High"; 4 -> "Crack" to "Low"; 5 -> "Crack" to "Moderate"
                 6 -> "Paint" to "High"; 7 -> "Paint" to "Low"; 8 -> "Paint" to "Moderate"
-                else -> "Crack" to "Low"
+                9 -> "Plain" to "None"  // ✅ NEW: Plain surface detected
+                else -> "Plain" to "None"  // ✅ CHANGED: Default to Plain instead of Crack-Low
             }
 
             val detectedIssuesMutable = mutableListOf<DetectedIssue>()
 
-            val (algaeLevel, algaeBest) = selectLevelFromConfidences(algaeLow, algaeMod, algaeHigh)
-            if (algaeBest > SHOW_THRESHOLD) detectedIssuesMutable.add(DetectedIssue("Algae", algaeLevel, algaeBest))
+            // ✅ MODIFIED: Only detect damage issues if Plain confidence is LOW
+            if (plainConf <= SHOW_THRESHOLD) {
+                val (algaeLevel, algaeBest) = selectLevelFromConfidences(algaeLow, algaeMod, algaeHigh)
+                if (algaeBest > SHOW_THRESHOLD) detectedIssuesMutable.add(DetectedIssue("Algae", algaeLevel, algaeBest))
 
-            val (crackLevel, crackBest) = selectLevelFromConfidences(crackLow, crackMod, crackHigh)
-            if (crackBest > SHOW_THRESHOLD) detectedIssuesMutable.add(DetectedIssue("Crack", crackLevel, crackBest))
+                val (crackLevel, crackBest) = selectLevelFromConfidences(crackLow, crackMod, crackHigh)
+                if (crackBest > SHOW_THRESHOLD) detectedIssuesMutable.add(DetectedIssue("Crack", crackLevel, crackBest))
 
-            val (paintLevel, paintBest) = selectLevelFromConfidences(paintLow, paintMod, paintHigh)
-            if (paintBest > SHOW_THRESHOLD) detectedIssuesMutable.add(DetectedIssue("Paint", paintLevel, paintBest))
+                val (paintLevel, paintBest) = selectLevelFromConfidences(paintLow, paintMod, paintHigh)
+                if (paintBest > SHOW_THRESHOLD) detectedIssuesMutable.add(DetectedIssue("Paint", paintLevel, paintBest))
+            }
 
+            // ✅ MODIFIED: Prioritize actual damage over plain surfaces
             val imageRisk = when {
                 detectedIssuesMutable.any { it.damageLevel == "High" } -> "High"
                 detectedIssuesMutable.any { it.damageLevel == "Moderate" } -> "Moderate"
                 detectedIssuesMutable.isNotEmpty() -> "Low"
+                plainConf > SHOW_THRESHOLD -> "None"  // ✅ NEW: Explicitly mark as no risk
                 else -> "Low"
             }
 
@@ -545,9 +569,16 @@ fun AssessmentResultsScreen(
             originalBitmap.recycle()
             resizedBitmap.recycle()
 
-            ImageAssessment(imageUri, primaryDamageType, primaryDamageLevel, maxConfidence,
-                crackLow, crackMod, crackHigh, paintLow, paintMod, paintHigh,
-                algaeLow, algaeMod, algaeHigh, "", detectedIssuesMutable.toList(), imageRisk)
+            // ✅ CORRECT ORDER: Match the data class parameter order
+            ImageAssessment(
+                imageUri = imageUri,
+                damageType = primaryDamageType, damageLevel = primaryDamageLevel, confidence = maxConfidence,
+                crackLowConf = crackLow, crackModerateConf = crackMod, crackHighConf = crackHigh,
+                paintLowConf = paintLow, paintModerateConf = paintMod, paintHighConf = paintHigh, algaeLowConf = algaeLow, algaeModerateConf = algaeMod,
+                algaeHighConf = algaeHigh, firebaseImageUrl = "",
+                detectedIssues = detectedIssuesMutable.toList(), imageRisk = imageRisk,
+                plainConf = plainConf  // ✅ NEW: Added plain confidence
+            )
         } catch (e: Exception) {
             e.printStackTrace()
             null
@@ -673,7 +704,7 @@ fun AssessmentResultsScreen(
                     )
                     Spacer(modifier = Modifier.height(24.dp))
                     Text(
-                        text = if (isAnalyzing) "Analyzing images..." else "Saving assessment to database",
+                        text = if (isAnalyzing) "Analyzing images..." else "Almost done! Saving your results...",
                         fontSize = 18.sp,
                         fontWeight = FontWeight.Medium,
                         color = Color.Black,
@@ -1003,9 +1034,14 @@ fun AssessmentResultsScreen(
                                 modifier = Modifier.weight(1f),
                                 shape = RoundedCornerShape(8.dp)
                             ) {
-                                Icon(Icons.Default.Download, contentDescription = "Download", modifier = Modifier.size(16.dp))
+                                Icon(
+                                    imageVector = Icons.Default.Download,
+                                    contentDescription = "Download",
+                                    modifier = Modifier.size(16.dp),
+                                    tint = Color(0xFF0288D1)
+                                )
                                 Spacer(Modifier.width(6.dp))
-                                Text("Download", fontSize = 14.sp)
+                                Text("Download", fontSize = 14.sp, color = Color (0xFF0288D1))
                             }
                         }
 
@@ -1081,7 +1117,7 @@ fun AssessmentResultsScreen(
                                                     isSaving = false
                                                     if (success) {
                                                         assessmentSummary = newSummary
-                                                        Toast.makeText(context, "✓ Re-analysis complete! Results updated.", Toast.LENGTH_LONG).show()
+                                                        Toast.makeText(context, "Re-analysis complete! Results updated.", Toast.LENGTH_LONG).show()
                                                     } else {
                                                         analysisError = "Failed to save re-analyzed results"
                                                     }
@@ -1198,13 +1234,14 @@ fun FullScreenImageViewer(imageUri: Uri, onDismiss: () -> Unit) {
         }
     }
 }
-
 @Composable
 fun AnalyzedImageCardV2(imageNumber: Int, assessment: ImageAssessment, onImageClick: () -> Unit = {}) {
     val issues = assessment.detectedIssues
 
-    val imageOverallLevel = remember(issues) {
+    // ✅ MODIFIED: Check for Plain surfaces first, then determine level
+    val imageOverallLevel = remember(issues, assessment.plainConf) {
         when {
+            assessment.plainConf > 0.30f -> "Plain"  // ✅ NEW: Plain surface detected
             issues.any { it.damageLevel == "High" } -> "High"
             issues.any { it.damageLevel == "Moderate" } -> "Moderate"
             issues.any { it.damageLevel == "Low" } -> "Low"
@@ -1224,22 +1261,63 @@ fun AnalyzedImageCardV2(imageNumber: Int, assessment: ImageAssessment, onImageCl
             }
             Spacer(Modifier.height(6.dp))
 
-            if (issues.isEmpty()) {
-                Text("No issues above 30% detected.", fontSize = 12.sp, color = Color.Gray)
-            } else {
-                issues.sortedByDescending { it.confidence }.forEach { issue ->
+            // ✅ MODIFIED: Show different messages based on Plain confidence
+            when {
+                assessment.plainConf > 0.30f -> {
+                    // ✅ NEW: Show clean surface message for Plain images
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.CheckCircle,
+                            contentDescription = "Clean",
+                            tint = Color(0xFF2E7D32),
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(Modifier.width(6.dp))
+                        Text(
+                            "Clean surface - No damage detected",
+                            fontSize = 12.sp,
+                            color = Color(0xFF2E7D32),
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                    // ✅ Show plain confidence bar
                     Column(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
-                        Text("${issue.damageType} Damage", fontSize = 13.sp, fontWeight = FontWeight.Medium, color = Color.Black)
+                        Text("Plain Surface", fontSize = 13.sp, fontWeight = FontWeight.Medium, color = Color.Black)
                         Spacer(Modifier.height(6.dp))
                         Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                             LinearProgressIndicator(
-                                progress = { issue.confidence.coerceIn(0f, 1f) },
+                                progress = { assessment.plainConf.coerceIn(0f, 1f) },
                                 modifier = Modifier.weight(1f).height(8.dp),
-                                color = getConfidenceColor(issue.damageLevel),
+                                color = Color(0xFF2E7D32),  // Green for plain
                                 trackColor = Color(0xFFE0E0E0)
                             )
                             Spacer(Modifier.width(8.dp))
-                            Text("${(issue.confidence * 100).toInt()}%", fontSize = 12.sp, fontWeight = FontWeight.Medium, color = Color.Black)
+                            Text("${(assessment.plainConf * 100).toInt()}%", fontSize = 12.sp, fontWeight = FontWeight.Medium, color = Color.Black)
+                        }
+                    }
+                }
+                issues.isEmpty() -> {
+                    Text("No issues above 30% detected.", fontSize = 12.sp, color = Color.Gray)
+                }
+                else -> {
+                    // ✅ Show damage issues (existing logic)
+                    issues.sortedByDescending { it.confidence }.forEach { issue ->
+                        Column(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+                            Text("${issue.damageType} Damage", fontSize = 13.sp, fontWeight = FontWeight.Medium, color = Color.Black)
+                            Spacer(Modifier.height(6.dp))
+                            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                                LinearProgressIndicator(
+                                    progress = { issue.confidence.coerceIn(0f, 1f) },
+                                    modifier = Modifier.weight(1f).height(8.dp),
+                                    color = getConfidenceColor(issue.damageLevel),
+                                    trackColor = Color(0xFFE0E0E0)
+                                )
+                                Spacer(Modifier.width(8.dp))
+                                Text("${(issue.confidence * 100).toInt()}%", fontSize = 12.sp, fontWeight = FontWeight.Medium, color = Color.Black)
+                            }
                         }
                     }
                 }
@@ -1247,12 +1325,12 @@ fun AnalyzedImageCardV2(imageNumber: Int, assessment: ImageAssessment, onImageCl
         }
     }
 }
-
 @Composable
 private fun LevelPill(level: String) {
     val colors = when (level) {
         "High" -> Pair(Color(0xFFFFEBEE), Color(0xFFD32F2F))
         "Moderate" -> Pair(Color(0xFFFFF3E0), Color(0xFFF57C00))
+        "Plain" -> Pair(Color(0xFFE8F5E9), Color(0xFF2E7D32))  // ✅ NEW: Green for plain
         else -> Pair(Color(0xFFE8F5E9), Color(0xFF2E7D32))
     }
     Box(modifier = Modifier.background(colors.first, RoundedCornerShape(6.dp)).padding(horizontal = 10.dp, vertical = 4.dp)) {
